@@ -30,8 +30,8 @@ export default function App() {
     const data = allData[monthKey];
     if (
       data &&
-      (data.privateSessions > 0 ||
-        data.groupSessions > 0 ||
+      (Number(data.privateSessions) > 0 ||
+        Number(data.groupSessions) > 0 ||
         (data.specialEvents && data.specialEvents.length > 0))
     ) {
       setResult(calculateOffsets(data));
@@ -48,8 +48,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="bg-glow bg-glow-1" />
-      <div className="bg-glow bg-glow-2" />
       <Header
         month={month}
         year={year}

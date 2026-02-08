@@ -9,15 +9,21 @@ export function calculateOffsets(data) {
     specialEvents = [],
   } = data;
 
+  const numPrivate = Number(privateSessions) || 0;
+  const numGroup = Number(groupSessions) || 0;
+
   // Step 1: Yarin owes Omar for rent (private sessions)
-  const yarinOwesOmar = privateSessions * PRIVATE_SESSION_RATE;
+  const yarinOwesOmar = numPrivate * PRIVATE_SESSION_RATE;
 
   // Step 2: Omar owes Yarin for group sessions
-  const omarOwesYarin = groupSessions * GROUP_SESSION_RATE;
+  const omarOwesYarin = numGroup * GROUP_SESSION_RATE;
 
   // Step 3: Special events - Yarin paid for Omar
-  const totalSpecialEvents = specialEvents.reduce(
-    (sum, ev) => sum + (Number(ev.amount) || 0),
+  const validEvents = specialEvents.filter(
+    (ev) => ev && ev.description && Number(ev.amount) > 0
+  );
+  const totalSpecialEvents = validEvents.reduce(
+    (sum, ev) => sum + Number(ev.amount),
     0
   );
 
@@ -28,25 +34,36 @@ export function calculateOffsets(data) {
   const steps = [];
   const transfers = [];
 
-  steps.push({
-    text: `ירין העביר ${privateSessions} אימונים פרטיים × ₪${PRIVATE_SESSION_RATE} = שכירות של ₪${yarinOwesOmar} לעומר`,
-    yarinOwesOmar,
-  });
+  // --- Build explanation steps ---
 
-  steps.push({
-    text: `ירין העביר ${groupSessions} אימונים קבוצתיים × ₪${GROUP_SESSION_RATE} = ₪${omarOwesYarin} שעומר חייב לירין`,
-    omarOwesYarin,
-  });
+  if (numPrivate > 0) {
+    steps.push({
+      text: `ירין העביר ${numPrivate} אימונים פרטיים × ₪${PRIVATE_SESSION_RATE} = שכירות של ₪${yarinOwesOmar} לעומר`,
+    });
+  }
 
-  if (specialEvents.length > 0) {
-    const eventsText = specialEvents
+  if (numGroup > 0) {
+    steps.push({
+      text: `ירין העביר ${numGroup} אימונים קבוצתיים × ₪${GROUP_SESSION_RATE} = ₪${omarOwesYarin} שעומר חייב לירין`,
+    });
+  }
+
+  if (validEvents.length > 0) {
+    const eventsText = validEvents
       .map((ev) => `${ev.description}: ₪${ev.amount}`)
       .join(', ');
     steps.push({
-      text: `אירועים מיוחדים שירין שילם על עומר: ${eventsText} (סה"כ ₪${totalSpecialEvents})`,
-      totalSpecialEvents,
+      text: `אירועים מיוחדים שירין שילם על עומר: ${eventsText} (סה"כ ₪${totalSpecialEvents}) — עומר חייב לירין את הסכום הזה`,
     });
   }
+
+  // Build net explanation
+  const netParts = [];
+  if (omarOwesYarin > 0) netParts.push(`₪${omarOwesYarin} אימונים קבוצתיים`);
+  if (totalSpecialEvents > 0) netParts.push(`₪${totalSpecialEvents} אירועים מיוחדים`);
+  const netReceivable = netParts.length > 0 ? netParts.join(' + ') : '₪0';
+
+  const netPayable = yarinOwesOmar > 0 ? `₪${yarinOwesOmar} שכירות` : '₪0';
 
   // Summary for each person
   const omerSummary = { receives: 0, pays: 0, details: [] };
@@ -56,7 +73,7 @@ export function calculateOffsets(data) {
   if (netYarinOmar > 0) {
     // Omar owes Yarin → offset through Gadi's rent
     steps.push({
-      text: `נטו: עומר חייב לירין ₪${netYarinOmar} (₪${omarOwesYarin} אימונים קבוצתיים - ₪${yarinOwesOmar} שכירות${totalSpecialEvents > 0 ? ` + ₪${totalSpecialEvents} אירועים מיוחדים` : ''})`,
+      text: `נטו: עומר חייב לירין ₪${netYarinOmar} (${netReceivable} - ${netPayable})`,
     });
 
     steps.push({
@@ -81,7 +98,7 @@ export function calculateOffsets(data) {
   } else if (netYarinOmar < 0) {
     const yarinPaysOmar = Math.abs(netYarinOmar);
     steps.push({
-      text: `נטו: ירין חייב לעומר ₪${yarinPaysOmar} (₪${yarinOwesOmar} שכירות - ₪${omarOwesYarin} אימונים קבוצתיים${totalSpecialEvents > 0 ? ` - ₪${totalSpecialEvents} אירועים מיוחדים` : ''})`,
+      text: `נטו: ירין חייב לעומר ₪${yarinPaysOmar} (${netPayable} - ${netReceivable})`,
     });
 
     transfers.push({
